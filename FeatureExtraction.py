@@ -14,7 +14,7 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
 
 
 
-    attribute_name = data.columns[:-1]
+    attribute_name = [column for column in data.columns if len(data[column].unique()) > 2] # unique값이 2개 초과 -> encoding 열 제외
     attribute = dict(zip(attribute_name, unit))
     data = data.to_dict()
 
@@ -22,14 +22,14 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
         def check_combine(_chr):
             if _chr[2] == 'attr':
                 check_attr1 = _attribute[_chr[0]]
-            elif _chr[2] == '+' or _chr[2] == '-':
+            elif _chr[2] == '+' or _chr[2] == '-' or _chr[2] == 'min' or _chr[2] == 'max':
                 check_attr1 = _attribute[_chr[0]]
             else:
                 check_attr1 = str(sympify('(' + _attribute[_chr[0]] + ')' + _chr[2] + '(' + _attribute[_chr[1]] + ')'))
 
             if _chr[5] == 'attr':
                 check_attr2 = _attribute[_chr[3]]
-            elif _chr[5] == '+' or _chr[5] == '-':
+            elif _chr[5] == '+' or _chr[5] == '-' or _chr[5] == 'min' or _chr[5] == 'max':
                 check_attr2 = _attribute[_chr[3]]
             else:
                 check_attr2 = str(sympify('(' + _attribute[_chr[3]] + ')' + _chr[5] + '(' + _attribute[_chr[4]] + ')'))
@@ -57,48 +57,64 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
         def combine(_chr):
             if _chr[2] == 'attr':
                 check_attr1 = str(_chr[0])
+            elif _chr[2] == 'min' or _chr[2] == 'max':
+                check_attr1= str(sympify(_chr[2] + '(' + _chr[0] + ',' + _chr[1] + ')'))
             else:
                 check_attr1 = str(sympify('(' + _chr[0] + ')' + _chr[2] + '(' + _chr[1] + ')'))
             if _chr[5] == 'attr':
                 check_attr2 = str(_chr[3])
+            elif _chr[5] == 'min' or _chr[5] == 'max':
+                check_attr2= str(sympify(_chr[5] + '(' + _chr[3] + ',' + _chr[4] + ')'))
             else:
                 check_attr2 = str(sympify('(' + _chr[3] + ')' + _chr[5] + '(' + _chr[4] + ')'))
             return str('(' + check_attr1 + ')' + _chr[-1] + '(' + check_attr2 + ')')
 
         def train_calculate(_chr):
-            if _chr[2] != 'attr':
+            if _chr[2] != 'attr' and _chr[2] != 'min' and _chr[2] != 'max':
                 check_attr1 = '(train_data["' + _chr[0] + '"][i]' + _chr[2] + 'train_data["' + _chr[1] + '"][i])'
+            elif _chr[2] == 'min' or _chr[2] == 'max':
+                check_attr1 = _chr[2]+'(train_data["' + _chr[0] + '"][i], train_data["' + _chr[1] + '"][i])'
             else:
                 check_attr1 = '(train_data["' + _chr[0] + '"][i])'
 
-            if _chr[5] != 'attr':
+            if _chr[5] != 'attr' and _chr[5] != 'min' and _chr[5] != 'max':
                 check_attr2 = '(train_data["' + _chr[3] + '"][i]' + _chr[5] + 'train_data["' + _chr[4] + '"][i])'
+            elif _chr[5] == 'min' or _chr[5] == 'max':
+                check_attr2 = _chr[5]+'(train_data["' + _chr[3] + '"][i], train_data["' + _chr[4] + '"][i])'
             else:
                 check_attr2 = '(train_data["' + _chr[3] + '"][i])'
 
             return str(check_attr1 + _chr[-1] + check_attr2)
 
         def calculate(_chr):
-            if _chr[2] != 'attr':
+            if _chr[2] != 'attr' and _chr[2] != 'min' and _chr[2] != 'max':
                 check_attr1 = '(_df["' + _chr[0] + '"][i]' + _chr[2] + '_df["' + _chr[1] + '"][i])'
+            elif _chr[2] == 'min' or _chr[2] == 'max':
+                check_attr1 = _chr[2]+'(_df["' + _chr[0] + '"][i], _df["' + _chr[1] + '"][i])'
             else:
                 check_attr1 = '(_df["' + _chr[0] + '"][i])'
 
-            if _chr[5] != 'attr':
+            if _chr[5] != 'attr' and _chr[5] != 'min' and _chr[5] != 'max':
                 check_attr2 = '(_df["' + _chr[3] + '"][i]' + _chr[5] + '_df["' + _chr[4] + '"][i])'
+            elif _chr[5] == 'min' or _chr[5] == 'max':
+                check_attr2 = _chr[5]+'(_df["' + _chr[3] + '"][i], _df["' + _chr[4] + '"][i])'
             else:
                 check_attr2 = '(_df["' + _chr[3] + '"][i])'
 
             return str(check_attr1 + _chr[-1] + check_attr2)
 
         def test_calculate(_chr):
-            if _chr[2] != 'attr':
+            if _chr[2] != 'attr' and _chr[2] != 'min' and _chr[2] != 'max':
                 check_attr1 = '(test_data["' + _chr[0] + '"][i]' + _chr[2] + 'test_data["' + _chr[1] + '"][i])'
+            elif _chr[2] == 'min' or _chr[2] == 'max':
+                check_attr1 = _chr[2] + '(test_data["' + _chr[0] + '"][i], test_data["' + _chr[1] + '"][i])'
             else:
                 check_attr1 = '(test_data["' + _chr[0] + '"][i])'
 
-            if _chr[5] != 'attr':
+            if _chr[5] != 'attr' and _chr[5] != 'min' and _chr[5] != 'max':
                 check_attr2 = '(test_data["' + _chr[3] + '"][i]' + _chr[5] + 'test_data["' + _chr[4] + '"][i])'
+            elif _chr[5] == 'min' or _chr[5] == 'max':
+                check_attr2 = _chr[5] + '(test_data["' + _chr[3] + '"][i], test_data["' + _chr[4] + '"][i])'
             else:
                 check_attr2 = '(test_data["' + _chr[3] + '"][i])'
 
@@ -107,12 +123,12 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
         def init_population(_init_size, _attribute, _attribute_name, _data, _df, chromosomes):
             used_chromosome, population_list = [], []
             while len(population_list) < _init_size:
-                _chromosome_list, operation, operation2 = [], ['+', '-', '*', '/'], ['+', '-', '*', '/', 'attr']
+                _chromosome_list, operation, operation2 = [], ['+', '-', '*', '/'], ['+', '-', '*', '/', 'attr', 'max', 'min']
                 chromosome_in_population = chromosomes
                 while len(_chromosome_list) != chromosome_in_population:
                     selectOP1 = np.random.choice(operation, 1, replace=True)
                     selectOP2 = np.random.choice(operation2, 2, replace=True)
-                    if (selectOP2[0] == '-') or (selectOP2[0] == '+'):
+                    if (selectOP2[0] == '-') or (selectOP2[0] == '+') or (selectOP2[0] == 'max') or (selectOP2[0] == 'min'):
                         selectATTR1 = np.random.choice(_attribute_name, 1, replace=False)
                         try:
                             selectATTR1 = np.append(selectATTR1, np.random.choice(list(
@@ -123,7 +139,7 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
                     else:
                         selectATTR1 = np.random.choice(_attribute_name, 2, replace=True)
 
-                    if (selectOP2[1] == '-') or (selectOP2[1] == '+'):
+                    if (selectOP2[1] == '-') or (selectOP2[1] == '+') or (selectOP2[1] == 'max') or (selectOP2[1] == 'min'):
                         selectATTR2 = np.random.choice(_attribute_name, 1, replace=False)
                         try:
                             selectATTR2 = np.append(selectATTR2, np.random.choice(list(
@@ -216,7 +232,7 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
 
         def crossover_mutate(_population_list, _max_generation, forest, _data, test_data, _attribute, _attribute_name,
                              chromosomes):
-            generation, operation = 1, ['+', '-', '*', '/']
+            generation, operation = 1, ['+', '-', '*', '/', 'max', 'min']
             chromosome_in_population = chromosomes
 
             def tournament_selection(_forest):
@@ -253,10 +269,10 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
                         if mutate_probability > 0.7:
                             def mutate1():
                                 _copy1 = copy.deepcopy(new_parent[idx][i * 2])
-                                _operation = ['+', '-', '*', '/', 'attr']
+                                _operation = ['+', '-', '*', '/', 'attr', 'max', 'min']
 
                                 selectOP = str(np.random.choice(_operation, 1, replace=True)[0])
-                                if (selectOP == '-') or (selectOP == '+'):
+                                if (selectOP == '-') or (selectOP == '+') or (selectOP == 'max') or (selectOP == 'min'):
                                     selectATTR = np.random.choice(_attribute_name, 1, replace=False)
                                     try:
                                         selectATTR = np.append(selectATTR, np.random.choice(list(filter(
@@ -295,10 +311,10 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
                         if mutate_probability > 0.7:
                             def mutate2():
                                 _copy2 = copy.deepcopy(new_parent[idx][i * 2 + 1])
-                                _operation = ['+', '-', '*', '/', 'attr']
+                                _operation = ['+', '-', '*', '/', 'attr', 'max', 'min']
 
                                 selectOP = str(np.random.choice(_operation, 1, replace=True)[0])
-                                if (selectOP == '-') or (selectOP == '+'):
+                                if (selectOP == '-') or (selectOP == '+') or (selectOP =='max') or (selectOP=='min'):
                                     selectATTR = np.random.choice(_attribute_name, 1, replace=False)
                                     try:
                                         selectATTR = np.append(selectATTR, np.random.choice(list(filter(

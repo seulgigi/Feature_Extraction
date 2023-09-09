@@ -211,7 +211,7 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
                     y_pred = classification.predict(
                         np.concatenate((test_chromosome.T[:, :len(unit)], test_chromosome.T[:, len(unit) + 1:]), axis=1))
 
-                    forest.append([_population, accuracy_score(test_chromosome.T[:, len(unit)], y_pred)])
+                    forest.append([_population, ML_model['evaluate'](test_chromosome.T[:, len(unit)], y_pred)])
             return forest
 
         def crossover_mutate(_population_list, _max_generation, forest, _data, test_data, _attribute, _attribute_name,

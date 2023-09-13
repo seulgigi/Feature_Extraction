@@ -4,6 +4,12 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
     if split_portion:
         train, test = train_test_split(data, stratify=data['Decision'], test_size=split_portion, random_state=2)
         train, validation = train_test_split(data, stratify=data['Decision'], test_size=split_portion, random_state=2)
+
+        # 나눠진 데이터셋을 csv 파일로 저장
+        train.to_csv('./dataset/train.csv', index=False)
+        test.to_csv('./dataset/test.csv', index=False)
+        validation.to_csv('./dataset/validation.csv', index=False)
+
         train, validation, test = train.to_dict(), validation.to_dict(), test.to_dict()
     else:
         train, validation, test = data.to_dict(), data.to_dict(), data.to_dict()

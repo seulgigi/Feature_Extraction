@@ -14,7 +14,7 @@ def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: list):
     else:
         train, validation, test = data.to_dict(), data.to_dict(), data.to_dict()
 
-    attribute_name = data.columns[:-1]
+    attribute_name = [column for column in data.columns if len(data[column].unique()) > 2] # unique값이 2개 초과 -> encoding 열 제외
     attribute = dict(zip(attribute_name, unit))
     data = data.to_dict()
 

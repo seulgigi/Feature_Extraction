@@ -72,15 +72,19 @@ def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _trai
         return str(check_attr1 + _chr[-1] + check_attr2)
 
     def validation_calculate(_chr):
-        if _chr[2] != 'attr':
+        if _chr[2] != 'attr' and _chr[2] != 'min' and _chr[2] != 'max':
             check_attr1 = '(validation_data["' + _chr[0] + '"][i]' + _chr[2] + 'validation_data["' + _chr[
                 1] + '"][i])'
+        elif _chr[2] == 'min' or _chr[2] == 'max':
+            check_attr1 = _chr[2] + '(validation_data["' + _chr[0] + '"][i], validation_data["' + _chr[1] + '"][i])'
         else:
             check_attr1 = '(validation_data["' + _chr[0] + '"][i])'
 
-        if _chr[5] != 'attr':
+        if _chr[5] != 'attr' and _chr[5] != 'min' and _chr[5] != 'max':
             check_attr2 = '(validation_data["' + _chr[3] + '"][i]' + _chr[5] + 'validation_data["' + _chr[
                 4] + '"][i])'
+        elif _chr[2] == 'min' or _chr[2] == 'max':
+            check_attr2 = _chr[2] + '(validation_data["' + _chr[0] + '"][i], validation_data["' + _chr[1] + '"][i])'
         else:
             check_attr2 = '(validation_data["' + _chr[3] + '"][i])'
 
@@ -189,6 +193,7 @@ def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _trai
                 train_equation = train_calculate(_chromosome)
                 validation_equation = validation_calculate(_chromosome)
                 test_equation = test_calculate(_chromosome)
+
                 if not extracted_feature in train_data:
                     train_data[extracted_feature] = {}
                     validation_data[extracted_feature] = {}

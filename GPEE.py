@@ -1,29 +1,36 @@
 from sklearn.model_selection import train_test_split
 from FeatureExtraction import feature_extraction
-def GPFE(data, split_portion: float, ML_model, GP_config: dict, unit: dict):
+import copy
+def GPFE(data, test_split_portion: float, validation_split_portion, ML_model, GP_config: dict, unit: dict):
 
+    data1=copy.deepcopy(data)
     train_unit = []
     for feature in unit.keys():
         if unit[feature] == None:
-            data = data.drop([feature], axis=1)
+            data1 = data1.drop([feature], axis=1)
         else:
             train_unit.append(unit[feature])
 
-    if split_portion:
-        train, test = train_test_split(data, stratify=data['Decision'], test_size=split_portion, random_state=2)
-        train, validation = train_test_split(data, stratify=data['Decision'], test_size=split_portion, random_state=2)
+    attribute_name = [column for column in data1.columns[:-1]]
+    attribute = dict(zip(attribute_name, train_unit))
 
-        # 나눠진 데이터셋을 csv 파일로 저장
-        train.to_csv('./dataset/train.csv', index=False)
-        test.to_csv('./dataset/test.csv', index=False)
-        validation.to_csv('./dataset/validation.csv', index=False)
 
-        train, validation, test = train.to_dict(), validation.to_dict(), test.to_dict()
+    if test_split_portion:
+        train_1, test = train_test_split(data, stratify=data['Decision'], test_size=test_split_portion, random_state=2)
+
+        if validation_split_portion != 0:
+            train, validation = train_test_split(train_1, stratify=train_1['Decision'], test_size=validation_split_portion, random_state=2)
+            train, validation, test = train.to_dict(), validation.to_dict(), test.to_dict()
+
+        else:
+            train, validation, test = train_1.to_dict(),train_1.to_dict(), test.to_dict() # TODO validation_split_portion None이라면 validation -> training
+
     else:
         train, validation, test = data.to_dict(), data.to_dict(), data.to_dict()
 
-    attribute_name = [column for column in data.columns if len(data[column].unique()) > 2] # unique값이 2개 초과 -> encoding 열 제외
-    attribute = dict(zip(attribute_name, train_unit))
+
+
+
     data = data.to_dict()
 
-    feature_extraction(GP_config, ML_model, attribute, attribute_name, train, validation, test, data, train_unit)
+    feature_extraction(GP_config, ML_model, attribute, attribute_name, train, validation, test, data, train_unit, validation_split_portion)

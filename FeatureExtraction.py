@@ -1,9 +1,8 @@
 from sympy import sympify
 import copy
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.metrics import mean_squared_error as mse
-def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _train, _validation, _test, df, unit):
+
+def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _train, _validation, _test, df, unit, _validation_split_portion):
     def check_combine(_chr):
         if _chr[2] == 'attr':
             check_attr1 = _attribute[_chr[0]]
@@ -227,28 +226,38 @@ def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _trai
             validation_chromosome = np.array(list(map(lambda x: list(validation_data[x].values()), validation_data)))
             test_chromosome = np.array(list(map(lambda x: list(test_data[x].values()), test_data)))
 
+
             if _ML_model['ML'] == 'regression':
                 regressor = _ML_model['model']
                 regressor.fit(
-                    np.concatenate((train_chromosome.T[:, :len(unit)], train_chromosome.T[:, len(unit) + 1:]), axis=1),
-                    train_chromosome.T[:, len(unit)])
-                y_pred = regressor.predict(
-                    np.concatenate((validation_chromosome.T[:, :len(unit)], validation_chromosome.T[:, len(unit) + 1:]),
+                    np.concatenate((train_chromosome.T[:, :len(df)-1], train_chromosome.T[:, len(df):]), axis=1),
+                    train_chromosome.T[:, len(df)-1])
+                y_pred_test = regressor.predict(
+                    np.concatenate((test_chromosome.T[:, :len(df)-1], test_chromosome.T[:, len(df):]),
                                    axis=1))
+                y_pred_validation = regressor.predict(
+                    np.concatenate((validation_chromosome.T[:, :len(df)-1], validation_chromosome.T[:, len(df):]),
+                                   axis=1))
+                validation_fitness.append([_population, _ML_model['regression_evaluate'](validation_chromosome.T[:, len(df)-1], y_pred_validation)])
+                forest.append([_population, _ML_model['regression_evaluate'](test_chromosome.T[:, len(df)-1], y_pred_test)])
 
-                validation_fitness.append([_population, accuracy_score(validation_chromosome.T[:, len(unit)], y_pred)])
-                forest.append([_population, mse(validation_chromosome.T[:, len(unit)], y_pred)])
+
             else:
                 classification = _ML_model['model']
+                a= train_chromosome.T[:, len(df)-1]
                 classification.fit(
-                    np.concatenate((train_chromosome.T[:, :len(unit)], train_chromosome.T[:, len(unit) + 1:]), axis=1),
-                    train_chromosome.T[:, len(unit)])
-                y_pred = classification.predict(
-                    np.concatenate((validation_chromosome.T[:, :len(unit)], validation_chromosome.T[:, len(unit) + 1:]),
+                    np.concatenate((train_chromosome.T[:, :len(df)-1], train_chromosome.T[:, len(df):]), axis=1),
+                    train_chromosome.T[:, len(df)-1])
+                y_pred_validation = classification.predict(
+                    np.concatenate((validation_chromosome.T[:, :len(df)-1], validation_chromosome.T[:, len(df):]),
+                                   axis=1))
+                y_pred_test = classification.predict(
+                    np.concatenate((test_chromosome.T[:, :len(df)-1], test_chromosome.T[:, len(df):]),
                                    axis=1))
 
-                validation_fitness.append([_population, accuracy_score(validation_chromosome.T[:, len(unit)], y_pred)])
-                forest.append([_population, _ML_model['evaluate'](test_chromosome.T[:, len(unit)], y_pred)])
+
+                validation_fitness.append([_population, _ML_model['classification_evaluate'](validation_chromosome.T[:, len(df)-1], y_pred_validation)])
+                forest.append([_population, _ML_model['classification_evaluate'](test_chromosome.T[:, len(df)-1], y_pred_test)])
         return forest, validation_fitness
 
     def crossover_mutate(_population_list, _max_generation, forest, validation_fitness, _train, test_data, _attribute,
@@ -263,9 +272,12 @@ def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _trai
             return parents[0]
 
         if _ML_model['ML'] == 'regression':
-            best_parent_chromosome, best_parent_MAE = sorted(forest, key=lambda x: x[1], reverse=False)[0]
+            best_parent_chromosome, best_parent_MSE = sorted(forest, key=lambda x: x[1], reverse=False)[0]
+            best_parent_validation_MSE=sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
         else:
             best_parent_chromosome, best_parent_ACC = sorted(forest, key=lambda x: x[1], reverse=True)[0]
+            best_parent_validation_ACC = sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
+
         while generation <= _max_generation:
             parent = sorted(forest, key=lambda x: x[1], reverse=False)[:int(_GP_config['population_size'] * 0.1) + 1]
             parent.extend([tournament_selection(forest, validation_fitness) for i in range(int(_GP_config['population_size'] * 0.9) - 1)])
@@ -418,15 +430,30 @@ def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _trai
                                                           _train, _validation, test_data)
             generation += 1
             if _ML_model['ML'] == 'regression':
-                best_tree, best_MAE = sorted(forest, key=lambda x: x[1], reverse=False)[0]
-                best_validation_ACC = sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
-                if best_parent_MAE < best_MAE:
-                    best_tree, best_MAE = best_parent_chromosome, best_parent_MAE
+                best_tree, best_MSE = sorted(forest, key=lambda x: x[1], reverse=False)[0]
+                best_validation_MSE = sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
+                if best_parent_MSE < best_MSE:
+                    best_tree, best_MSE = best_parent_chromosome, best_parent_MSE
                 else:
-                    best_parent_chromosome, best_parent_MAE = best_tree, best_MAE
-                print('Generation ' + str(generation) + ' best MAE: ' + str(best_MAE) + ' best Validation ACC: ' + str(
-                    best_validation_ACC))
-                print([combine(i) for i in best_tree])
+                    best_parent_chromosome, best_parent_MSE = best_tree, best_MSE
+
+                if best_parent_validation_MSE < best_validation_MSE:
+                    best_validation_MSE = best_parent_validation_MSE
+
+                else:
+                    best_parent_validation_MSE = best_validation_MSE
+
+                if _validation_split_portion ==None:
+                    print('Generation ' + str(generation) + ' Best Test ' + (_ML_model['regression_evaluate'].__name__) +': '+ str(best_MSE)
+                          + ' Best Training ' + (_ML_model['regression_evaluate'].__name__) +': '+ str(best_validation_MSE))
+                    print([combine(i) for i in best_tree])
+
+
+                else:
+                    print('Generation ' + str(generation) + ' Best Test ' + (_ML_model['regression_evaluate'].__name__) +': '+ str(best_MSE)
+                          + ' Best Validation ' + (_ML_model['regression_evaluate'].__name__) + ': ' + str(best_validation_MSE))
+                    print([combine(i) for i in best_tree])
+
             else:
                 best_tree, best_acc = sorted(forest, key=lambda x: x[1], reverse=True)[0]
                 best_validation_ACC = sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
@@ -434,26 +461,52 @@ def feature_extraction(_GP_config, _ML_model, _attribute, _attribute_name, _trai
                     best_tree, best_acc = best_parent_chromosome, best_parent_ACC
                 else:
                     best_parent_chromosome, best_parent_ACC = best_tree, best_acc
-                print('Generation ' + str(generation) + ' best ACC: ' + str(best_acc) + ' best Validation ACC: ' + str(
-                    best_validation_ACC))
-                print([combine(i) for i in best_tree])
+
+                if best_parent_validation_ACC > best_validation_ACC:
+                    best_validation_ACC = best_parent_validation_ACC
+
+                else:
+                    best_parent_validation_ACC = best_validation_ACC
+
+                if _validation_split_portion == None:
+                    print('Generation ' + str(generation) + ' Best Test ' + (_ML_model['classification_evaluate'].__name__) + ": " + str(best_acc) +
+                          ' Best Training ' + (_ML_model['classification_evaluate'].__name__) + ': ' + str(best_validation_ACC))
+                    print([combine(i) for i in best_tree])
+                else:
+                    print('Generation ' + str(generation) + ' Best Test ' + (_ML_model['classification_evaluate'].__name__) + ": " + str(best_acc) +
+                          ' Best Validation ' + (_ML_model['classification_evaluate'].__name__) + ': '  + str(best_validation_ACC))
+                    print([combine(i) for i in best_tree])
+
 
     population_list, forest, validation_fitness = init_population(_GP_config['population_size'], _attribute, _attribute_name, _train, df,
                                                                   _GP_config['chromosome_size']), [], []
 
     forest, validation_fitness = evaluate_fitness(population_list, forest, validation_fitness, _attribute, _train,
                                                   _validation, _test)
-    if _ML_model['ML'] == 'regression':
-        best_tree, best_MAE = sorted(forest, key=lambda x: x[1], reverse=False)[0]
-        best_validation_ACC = sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
-        print('Generation ' + str(1) + ' best MAE: ' + str(best_MAE) + ' best Validation ACC: ' + str(
-            best_validation_ACC))
-        print([combine(i) for i in best_tree])
+    if _ML_model['ML'] == 'regression' :
+        best_tree, best_MSE = sorted(forest, key=lambda x: x[1], reverse=False)[0]
+        best_validation_MSE_initial = sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
+        if _validation_split_portion == None:
+            print('Generation ' + str(1) + ' Best Test ' + (_ML_model['regression_evaluate'].__name__) + ': '+ str(best_MSE)
+                  + ' Best Training ' + (_ML_model['regression_evaluate'].__name__) + ': '+ str(best_validation_MSE_initial))
+            print([combine(i) for i in best_tree])
+
+        else:
+            print('Generation ' + str(1) + ' Best Test ' + (_ML_model['regression_evaluate'].__name__) + ': '+ str(best_MSE)
+                  + ' Best Validation ' + (_ML_model['regression_evaluate'].__name__) + ': ' + str(best_validation_MSE_initial))
+            print([combine(i) for i in best_tree])
+
     else:
         best_tree, best_ACC = sorted(forest, key=lambda x: x[1], reverse=True)[0]
         best_validation_ACC = sorted(validation_fitness, key=lambda x: x[1], reverse=False)[0][-1]
-        print('Generation ' + str(1) + ' best ACC: ' + str(best_ACC) + ' best Validation ACC: ' + str(
-            best_validation_ACC))
-        print([combine(i) for i in best_tree])
+        if _validation_split_portion == None:
+            print('Generation ' + str(1) + ' Best Test ' + (_ML_model['classification_evaluate'].__name__) +': ' + str(best_ACC) +
+                  ' Best Training ' + (_ML_model['classification_evaluate'].__name__) + ': ' + str(best_validation_ACC))
+            print([combine(i) for i in best_tree])
+        else:
+            print('Generation ' + str(1) + ' Best Test '+ (_ML_model['classification_evaluate'].__name__) +': ' + str(best_ACC) +
+                  ' Best Validation ' + (_ML_model['classification_evaluate'].__name__) +': '+ str(best_validation_ACC))
+            print([combine(i) for i in best_tree])
+
     crossover_mutate(population_list, _GP_config['max_generation'], forest, validation_fitness, _train, _test, _attribute,
                      _attribute_name, _GP_config['chromosome_size'])
